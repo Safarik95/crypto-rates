@@ -32,13 +32,33 @@ func (s *RateService) FetchAndStoreRates() error {
 		if err != nil {
 			return fmt.Errorf("ошибка сохранения %s: %w", currency, err)
 		}
-
-		zap.L().Info("Курс обновлен",
-			zap.String("валюта", currency),
-			zap.Float64("цена", price),
-		)
 	}
 
 	zap.L().Info("Все курсы обновлены")
 	return nil
+}
+
+// GetRateInfo просто вызывает метод репозитория
+func (s *RateService) GetRateInfo(currency string) (*database.RateInfo, error) {
+	return s.rateRepo.GetRateInfo(currency)
+}
+
+// GetAllRateInfo возвращает информацию для всех валют
+func (s *RateService) GetAllRateInfo() map[string]*database.RateInfo {
+	currencies := []string{"BTC", "ETH"}
+	results := make(map[string]*database.RateInfo)
+
+	for _, currency := range currencies {
+		info, err := s.rateRepo.GetRateInfo(currency)
+		if err != nil {
+			zap.L().Error("Ошибка получения информации",
+				zap.String("валюта", currency),
+				zap.Error(err),
+			)
+			continue
+		}
+		results[currency] = info
+	}
+
+	return results
 }

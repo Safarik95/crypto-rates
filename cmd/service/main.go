@@ -6,6 +6,7 @@ import (
 	"crypto-rates/internal/database"
 	"crypto-rates/internal/logger"
 	"crypto-rates/internal/service"
+	"fmt"
 	"go.uber.org/zap"
 	"time"
 )
@@ -59,11 +60,39 @@ func main() {
 		zap.L().Error("Ошибка первого обновления", zap.Error(err))
 	}
 
+	// Показываем информацию о курсах после первого обновления
+	showRateInfo(rateService)
+
 	// Основной цикл
 	for range ticker.C {
 		zap.L().Debug("Запуск обновления курсов")
+
 		if err := rateService.FetchAndStoreRates(); err != nil {
 			zap.L().Error("Ошибка обновления курсов", zap.Error(err))
 		}
+
+		// Показываем информацию каждые 5 циклов (чтобы не засорять логи)
+		showRateInfo(rateService)
 	}
+}
+
+// showRateInfo показывает информацию о курсах
+func showRateInfo(rateService *service.RateService) {
+	zap.L().Info("=== ИНФОРМАЦИЯ О КУРСАХ ===")
+
+	rateInfo := rateService.GetAllRateInfo()
+	for currency, info := range rateInfo {
+		zap.L().Info("Курс",
+			zap.String("валюта", currency),
+			zap.Float64("текущая_цена", info.CurrentPrice),
+			zap.Float64("мин_24ч", info.MinPrice24h),
+			zap.Float64("макс_24ч", info.MaxPrice24h),
+			zap.String("изменение_за_час", info.Change1h),
+		)
+
+		// Красивый вывод в консоль
+		fmt.Printf("%s: $%.2f (24ч: $%.2f - $%.2f) %s\n",
+			currency, info.CurrentPrice, info.MinPrice24h, info.MaxPrice24h, info.Change1h)
+	}
+	fmt.Println() // Пустая строка для разделения
 }
