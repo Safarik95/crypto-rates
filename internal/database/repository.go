@@ -17,7 +17,7 @@ func (r *RateRepository) SaveRate(currency string, price float64) error {
 	query := `INSERT INTO rates (currency_code, price) VALUES ($1, $2)`
 	_, err := r.db.Exec(query, currency, price)
 	if err != nil {
-		return fmt.Errorf("Error saving rate: %w", err)
+		return fmt.Errorf("ошибка сохранения курса: %w", err)
 	}
 	return nil
 }

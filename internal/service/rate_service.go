@@ -4,7 +4,7 @@ import (
 	"crypto-rates/internal/api"
 	"crypto-rates/internal/database"
 	"fmt"
-	"log"
+	"go.uber.org/zap"
 )
 
 type RateService struct {
@@ -21,17 +21,24 @@ func NewRateService(binanceClient *api.BinanceClient, rateRepo *database.RateRep
 
 func (s *RateService) FetchAndStoreRates() error {
 	currencies := []string{"BTC", "ETH"}
+
 	for _, currency := range currencies {
 		price, err := s.binanceClient.GetRate(currency)
 		if err != nil {
 			return fmt.Errorf("ошибка получения %s: %w", currency, err)
 		}
+
 		err = s.rateRepo.SaveRate(currency, price)
 		if err != nil {
 			return fmt.Errorf("ошибка сохранения %s: %w", currency, err)
 		}
-		log.Printf("Успешно обновлен %s: $%.2f", currency, price)
+
+		zap.L().Info("Курс обновлен",
+			zap.String("валюта", currency),
+			zap.Float64("цена", price),
+		)
 	}
-	log.Println("Все курсы успешно обновлены!")
+
+	zap.L().Info("Все курсы обновлены")
 	return nil
 }

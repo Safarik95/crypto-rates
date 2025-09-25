@@ -18,15 +18,16 @@ type BinanceTickerResponse struct {
 	Price  string `json:"price"`
 }
 
-func NewBinanceClient() *BinanceClient {
+func NewBinanceClient(baseURL string) *BinanceClient {
 	return &BinanceClient{
-		baseURL: "https://api.binance.com/api/v3",
+		baseURL: baseURL,
 		client:  &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
 func (c *BinanceClient) GetRate(currency string) (float64, error) {
 	url := fmt.Sprintf("%s/ticker/price?symbol=%sUSDT", c.baseURL, currency)
+
 	resp, err := c.client.Get(url)
 	if err != nil {
 		return 0, fmt.Errorf("ошибка HTTP запроса: %w", err)
@@ -46,5 +47,6 @@ func (c *BinanceClient) GetRate(currency string) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("ошибка конвертации цены: %w", err)
 	}
+
 	return price, nil
 }

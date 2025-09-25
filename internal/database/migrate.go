@@ -2,34 +2,28 @@ package database
 
 import (
 	"database/sql"
-	"fmt"
-	"log"
-	"os"
-	"path/filepath"
+	"github.com/pressly/goose/v3"
+	"go.uber.org/zap"
 	"strings"
 )
 
-func Migrate(db *sql.DB, migrationsDir string) error {
-	files, err := filepath.Glob(filepath.Join(migrationsDir, "*.up.sql"))
+func Migrate(db *sql.DB) error {
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
+	}
+
+	// Применяем миграции
+	err := goose.Up(db, "migrations")
 	if err != nil {
-		return fmt.Errorf("ошибка чтения директории миграций: %w", err)
-	}
-	for _, file := range files {
-		log.Printf("Применяем миграцию: %s", file)
-		sqlContent, err := os.ReadFile(file)
-		if err != nil {
-			return fmt.Errorf("ошибка чтения файла %s: %w", file, err)
+		// Игнорируем ТОЛЬКО ошибки "already exists"
+		if strings.Contains(err.Error(), "already exists") {
+			zap.L().Info("Таблицы или индексы уже существуют (это нормально)")
+			return nil
 		}
-		_, err = db.Exec(string(sqlContent))
-		if err != nil {
-			if strings.Contains(err.Error(), "already exists") {
-				log.Printf("Таблица уже существует: %s", file)
-				continue
-			}
-			return fmt.Errorf("ошибка выполнения миграции %s: %w", file, err)
-		}
-		log.Printf("Миграция успешно применена: %s", file)
+		// Все другие ошибки - критичные
+		return err
 	}
-	log.Println("Миграции завершены")
+
+	zap.L().Info("Миграции применены успешно")
 	return nil
 }

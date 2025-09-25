@@ -2,47 +2,68 @@ package main
 
 import (
 	"crypto-rates/internal/api"
+	"crypto-rates/internal/config"
 	"crypto-rates/internal/database"
+	"crypto-rates/internal/logger"
 	"crypto-rates/internal/service"
-	"log"
+	"go.uber.org/zap"
 	"time"
 )
 
 func main() {
-	dbConfig := database.Config{
-		Host:     "localhost",
-		Port:     5432,
-		User:     "postgres",
-		Password: "password",
-		DBName:   "crypto_rates",
-	}
-	db, err := database.NewPostgresConnection(dbConfig)
+	// Инициализируем логгер
+	log, err := logger.New()
 	if err != nil {
-		log.Fatalf("Ошибка подключения к БД: %v", err)
+		panic(err)
+	}
+	defer log.Sync()
+
+	// Устанавливаем глобальный логгер
+	zap.ReplaceGlobals(log)
+
+	// Загружаем конфигурацию
+	cfg, err := config.Load()
+	if err != nil {
+		zap.L().Fatal("Ошибка загрузки конфигурации", zap.Error(err))
+	}
+
+	// Подключаемся к БД
+	db, err := database.NewPostgresConnection(cfg)
+	if err != nil {
+		zap.L().Fatal("Ошибка подключения к БД", zap.Error(err))
 	}
 	defer db.Close()
 
-	err = database.Migrate(db, "migrations")
-	if err != nil {
-		log.Printf("Предупреждение: %v", err)
+	// Применяем миграции
+	if err := database.Migrate(db); err != nil {
+		zap.L().Error("Ошибка применения миграций", zap.Error(err))
 	}
 
-	binanceClient := api.NewBinanceClient()
+	// Инициализируем сервисы
+	binanceClient := api.NewBinanceClient(cfg.BinanceAPIURL)
 	rateRepo := database.NewRateRepository(db)
 	rateService := service.NewRateService(binanceClient, rateRepo)
-	ticker := time.NewTicker(5 * time.Minute)
+
+	// Настраиваем интервал обновления
+	interval := time.Duration(cfg.UpdateIntervalMinutes) * time.Minute
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	log.Println("Запуск первого обновления...")
-	err = rateService.FetchAndStoreRates()
-	if err != nil {
-		log.Printf("Ошибка первого обновления: %v", err)
+
+	zap.L().Info("Сервис запущен",
+		zap.String("интервал", interval.String()),
+		zap.String("API", cfg.BinanceAPIURL),
+	)
+
+	// Первый запуск
+	if err := rateService.FetchAndStoreRates(); err != nil {
+		zap.L().Error("Ошибка первого обновления", zap.Error(err))
 	}
-	log.Println("Сервис запущен. Обновление каждые 5 минут...")
+
+	// Основной цикл
 	for range ticker.C {
-		log.Println("Запуск периодического обновления...")
-		err = rateService.FetchAndStoreRates()
-		if err != nil {
-			log.Printf("Ошибка периодического обновления: %v", err)
+		zap.L().Debug("Запуск обновления курсов")
+		if err := rateService.FetchAndStoreRates(); err != nil {
+			zap.L().Error("Ошибка обновления курсов", zap.Error(err))
 		}
 	}
 }
