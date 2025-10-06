@@ -32,23 +32,46 @@ func (s *RateService) FetchAndStoreRates() error {
 		if err != nil {
 			return fmt.Errorf("ошибка сохранения %s: %w", currency, err)
 		}
+
+		zap.L().Info("Курс обновлен",
+			zap.String("валюта", currency),
+			zap.Float64("цена", price),
+		)
 	}
 
 	zap.L().Info("Все курсы обновлены")
 	return nil
 }
 
-// GetRateInfo просто вызывает метод репозитория
+// GetRateInfo возвращает информацию для ОДНОЙ валюты
 func (s *RateService) GetRateInfo(currency string) (*database.RateInfo, error) {
-	return s.rateRepo.GetRateInfo(currency)
+	zap.L().Debug("GetRateInfo вызван для валюты", zap.String("валюта", currency))
+
+	// Получаем данные только для запрошенной валюты
+	rateInfo, err := s.rateRepo.GetRateInfo(currency)
+	if err != nil {
+		zap.L().Error("Ошибка в GetRateInfo", zap.String("валюта", currency), zap.Error(err))
+		return nil, fmt.Errorf("ошибка получения информации для %s: %w", currency, err)
+	}
+
+	zap.L().Debug("GetRateInfo успешно завершен",
+		zap.String("валюта", rateInfo.Currency),
+		zap.Float64("цена", rateInfo.CurrentPrice),
+	)
+
+	return rateInfo, nil
 }
 
-// GetAllRateInfo возвращает информацию для всех валют
+// GetAllRateInfo возвращает информацию для ВСЕХ валют
 func (s *RateService) GetAllRateInfo() map[string]*database.RateInfo {
+	zap.L().Debug("GetAllRateInfo вызван")
+
 	currencies := []string{"BTC", "ETH"}
 	results := make(map[string]*database.RateInfo)
 
 	for _, currency := range currencies {
+		zap.L().Debug("Получение информации для валюты", zap.String("валюта", currency))
+
 		info, err := s.rateRepo.GetRateInfo(currency)
 		if err != nil {
 			zap.L().Error("Ошибка получения информации",
@@ -60,5 +83,6 @@ func (s *RateService) GetAllRateInfo() map[string]*database.RateInfo {
 		results[currency] = info
 	}
 
+	zap.L().Debug("GetAllRateInfo завершен", zap.Int("количество_валют", len(results)))
 	return results
 }

@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"crypto-rates/internal/api"
+	"crypto-rates/internal/api/rest"
 	"crypto-rates/internal/config"
 	"crypto-rates/internal/database"
 	"crypto-rates/internal/logger"
 	"crypto-rates/internal/service"
+	"crypto-rates/internal/telegram"
 	"fmt"
 	"go.uber.org/zap"
 	"time"
@@ -44,6 +47,31 @@ func main() {
 	binanceClient := api.NewBinanceClient(cfg.BinanceAPIURL)
 	rateRepo := database.NewRateRepository(db)
 	rateService := service.NewRateService(binanceClient, rateRepo)
+
+	restServer := rest.NewServer(cfg.APIPort, rateService)
+	go func() {
+		zap.L().Info("Запуск REST API сервера...")
+		if err := restServer.Start(); err != nil {
+			zap.L().Error("Ошибка REST API сервера", zap.Error(err))
+		}
+	}()
+	defer restServer.Stop(context.Background())
+
+	if cfg.TelegramBotToken != "" {
+		telegramBot := telegram.NewBot(cfg.TelegramBotToken, rateService)
+
+		go func() {
+			zap.L().Info("Запуск Telegram бота...")
+			if err := telegramBot.Start(); err != nil {
+				zap.L().Error("Ошибка Telegram бота", zap.Error(err))
+			}
+		}()
+		defer telegramBot.Stop()
+
+		zap.L().Info("Telegram бот запущен")
+	} else {
+		zap.L().Warn("TELEGRAM_BOT_TOKEN не установлен, бот не запущен")
+	}
 
 	// Настраиваем интервал обновления
 	interval := time.Duration(cfg.UpdateIntervalMinutes) * time.Minute

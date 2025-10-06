@@ -15,6 +15,8 @@ type Config struct {
 	BinanceAPIURL         string
 	UpdateIntervalMinutes int
 	LogLevel              string
+	TelegramBotToken      string
+	APIPort               string
 }
 
 func Load() (*Config, error) {
@@ -30,6 +32,8 @@ func Load() (*Config, error) {
 		BinanceAPIURL:         getEnv("BINANCE_API_URL", "https://api.binance.com/api/v3"),
 		UpdateIntervalMinutes: getEnvAsInt("UPDATE_INTERVAL_MINUTES", 5),
 		LogLevel:              getEnv("LOG_LEVEL", "info"),
+		TelegramBotToken:      getEnv("TELEGRAM_BOT_TOKEN", ""),
+		APIPort:               getEnv("API_PORT", "8080"),
 	}, nil
 }
 
