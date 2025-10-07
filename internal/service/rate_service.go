@@ -8,11 +8,11 @@ import (
 )
 
 type RateService struct {
-	binanceClient *api.BinanceClient
-	rateRepo      *database.RateRepository
+	binanceClient api.BinanceClientInterface
+	rateRepo      database.RateRepositoryInterface
 }
 
-func NewRateService(binanceClient *api.BinanceClient, rateRepo *database.RateRepository) *RateService {
+func NewRateService(binanceClient api.BinanceClientInterface, rateRepo database.RateRepositoryInterface) *RateService {
 	return &RateService{
 		binanceClient: binanceClient,
 		rateRepo:      rateRepo,
@@ -64,8 +64,6 @@ func (s *RateService) GetRateInfo(currency string) (*database.RateInfo, error) {
 
 // GetAllRateInfo возвращает информацию для ВСЕХ валют
 func (s *RateService) GetAllRateInfo() map[string]*database.RateInfo {
-	zap.L().Debug("GetAllRateInfo вызван")
-
 	currencies := []string{"BTC", "ETH"}
 	results := make(map[string]*database.RateInfo)
 

@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: crypto-postgres
+    environment:
+      POSTGRES_DB: crypto_rates
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: crypto-rates-app
+    environment:
+      DB_HOST: postgres  # ← используем имя сервиса, а не container_name
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: crypto_rates
+      BINANCE_API_URL: https://api.binance.com/api/v3
+      UPDATE_INTERVAL_MINUTES: 5
+      LOG_LEVEL: info
+      API_PORT: 8080
+      TELEGRAM_BOT_TOKEN: "8338158063:AAFF8Tsph4kKTIEr5O4QlVUMfQAWtr8gr3g"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy  # ← ждем пока БД станет здоровой
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

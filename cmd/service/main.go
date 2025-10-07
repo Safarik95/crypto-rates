@@ -31,6 +31,10 @@ func main() {
 		zap.L().Fatal("Ошибка загрузки конфигурации", zap.Error(err))
 	}
 
+	if err := waitForDB(cfg); err != nil {
+		zap.L().Fatal("База данных недоступна", zap.Error(err))
+	}
+
 	// Подключаемся к БД
 	db, err := database.NewPostgresConnection(cfg)
 	if err != nil {
@@ -101,6 +105,36 @@ func main() {
 
 		// Показываем информацию каждые 5 циклов (чтобы не засорять логи)
 		showRateInfo(rateService)
+	}
+}
+
+func waitForDB(cfg *config.Config) error {
+	zap.L().Info("Ожидание подключения к базе данных...",
+		zap.String("хост", cfg.DBHost),
+		zap.Int("порт", cfg.DBPort),
+	)
+
+	timeout := time.Second * 30
+	start := time.Now()
+
+	for {
+		db, err := database.NewPostgresConnection(cfg)
+		if err == nil {
+			db.Close()
+			zap.L().Info("База данных доступна",
+				zap.Duration("время_ожидания", time.Since(start)),
+			)
+			return nil
+		}
+
+		if time.Since(start) > timeout {
+			return fmt.Errorf("таймаут подключения к БД: %v", err)
+		}
+
+		zap.L().Debug("База данных еще не доступна, повторная попытка...",
+			zap.Error(err),
+		)
+		time.Sleep(2 * time.Second)
 	}
 }
 

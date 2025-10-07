@@ -10,17 +10,26 @@ import (
 
 func (b *Bot) formatRatesMessage(rates map[string]*database.RateInfo, title string) string {
 	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s\n\n", title))
+
+	if len(rates) == 0 {
+		sb.WriteString("Нет данных о курсах\n\n")
+		sb.WriteString("_Обновляется каждые 5 минут_")
+		return sb.String()
+	}
+
 	for currency, info := range rates {
-		trend := "➡️"
+		trend := "->"
 		if strings.HasPrefix(info.Change1h, "+") {
-			trend = "📈"
+			trend = "UP"
 		} else if strings.HasPrefix(info.Change1h, "-") {
-			trend = "📉"
+			trend = "DOWN"
 		}
+
 		sb.WriteString(fmt.Sprintf(
 			"*%s*: $%.2f\n"+
-				"24ч: $%.2f - $%.2f\n"+
-				"%s Изменение за час: %s\n\n",
+				"24h: $%.2f - $%.2f\n"+
+				"%s Change 1h: %s\n\n",
 			currency,
 			info.CurrentPrice,
 			info.MinPrice24h,
@@ -29,17 +38,20 @@ func (b *Bot) formatRatesMessage(rates map[string]*database.RateInfo, title stri
 			info.Change1h,
 		))
 	}
-	sb.WriteString("Обновляется каждые 5 минут")
+
+	sb.WriteString("_Обновляется каждые 5 минут_")
 	return sb.String()
 }
 
 func (b *Bot) sendMessage(bot *tgbotapi.BotAPI, chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = "Markdown"
+
 	_, err := bot.Send(msg)
 	if err != nil {
 		zap.L().Error("Ошибка отправки сообщения",
 			zap.Int64("chat_id", chatID),
-			zap.Error(err))
+			zap.Error(err),
+		)
 	}
 }
