@@ -43,26 +43,19 @@ func (s *RateService) FetchAndStoreRates() error {
 	return nil
 }
 
-// GetRateInfo возвращает информацию для ОДНОЙ валюты
 func (s *RateService) GetRateInfo(currency string) (*database.RateInfo, error) {
-	zap.L().Debug("GetRateInfo вызван для валюты", zap.String("валюта", currency))
-
-	// Получаем данные только для запрошенной валюты
 	rateInfo, err := s.rateRepo.GetRateInfo(currency)
 	if err != nil {
-		zap.L().Error("Ошибка в GetRateInfo", zap.String("валюта", currency), zap.Error(err))
+		zap.L().Error("Ошибка получения информации о курсе",
+			zap.String("валюта", currency),
+			zap.Error(err),
+		)
 		return nil, fmt.Errorf("ошибка получения информации для %s: %w", currency, err)
 	}
-
-	zap.L().Debug("GetRateInfo успешно завершен",
-		zap.String("валюта", rateInfo.Currency),
-		zap.Float64("цена", rateInfo.CurrentPrice),
-	)
 
 	return rateInfo, nil
 }
 
-// GetAllRateInfo возвращает информацию для ВСЕХ валют
 func (s *RateService) GetAllRateInfo() map[string]*database.RateInfo {
 	currencies := []string{"BTC", "ETH"}
 	results := make(map[string]*database.RateInfo)
@@ -80,7 +73,5 @@ func (s *RateService) GetAllRateInfo() map[string]*database.RateInfo {
 		}
 		results[currency] = info
 	}
-
-	zap.L().Debug("GetAllRateInfo завершен", zap.Int("количество_валют", len(results)))
 	return results
 }

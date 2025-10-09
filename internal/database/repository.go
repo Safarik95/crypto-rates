@@ -14,7 +14,6 @@ func NewRateRepository(db *sql.DB) *RateRepository {
 	return &RateRepository{db: db}
 }
 
-// SaveRate сохраняет курс валюты в базу данных
 func (r *RateRepository) SaveRate(currency string, price float64) error {
 	query := `INSERT INTO rates (currency_code, price) VALUES ($1, $2)`
 
@@ -26,7 +25,6 @@ func (r *RateRepository) SaveRate(currency string, price float64) error {
 	return nil
 }
 
-// RateInfo упрощенная структура для хранения информации
 type RateInfo struct {
 	Currency     string
 	CurrentPrice float64
@@ -35,7 +33,6 @@ type RateInfo struct {
 	Change1h     string
 }
 
-// GetCurrentPrice возвращает текущую цену
 func (r *RateRepository) GetCurrentPrice(currency string) (float64, error) {
 	query := `SELECT price FROM rates WHERE currency_code = $1 ORDER BY timestamp DESC LIMIT 1`
 
@@ -48,7 +45,6 @@ func (r *RateRepository) GetCurrentPrice(currency string) (float64, error) {
 	return price, nil
 }
 
-// GetSimpleDailyStats простой метод для мин/макс за 24 часа
 func (r *RateRepository) GetSimpleDailyStats(currency string) (minPrice, maxPrice float64, err error) {
 	query := `
 		SELECT 
@@ -66,7 +62,6 @@ func (r *RateRepository) GetSimpleDailyStats(currency string) (minPrice, maxPric
 	return
 }
 
-// GetHourlyChangePercent возвращает изменение в процентах за час
 func (r *RateRepository) GetHourlyChangePercent(currency string) string {
 	query := `
 		WITH current_price AS (
@@ -97,7 +92,6 @@ func (r *RateRepository) GetHourlyChangePercent(currency string) string {
 		return "0%"
 	}
 
-	// Если нет данных за прошлый час
 	if hourAgoPrice == 0 {
 		return "0%"
 	}
@@ -110,23 +104,18 @@ func (r *RateRepository) GetHourlyChangePercent(currency string) string {
 	return fmt.Sprintf("%.2f%%", change)
 }
 
-// GetRateInfo возвращает всю информацию для валюты
 func (r *RateRepository) GetRateInfo(currency string) (*RateInfo, error) {
-	// Текущая цена
 	currentPrice, err := r.GetCurrentPrice(currency)
 	if err != nil {
 		return nil, err
 	}
 
-	// Мин/макс за 24 часа
 	minPrice, maxPrice, err := r.GetSimpleDailyStats(currency)
 	if err != nil {
-		// Fallback - используем текущую цену
 		minPrice = currentPrice
 		maxPrice = currentPrice
 	}
 
-	// Изменение за час
 	change1h := r.GetHourlyChangePercent(currency)
 
 	return &RateInfo{

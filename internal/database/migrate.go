@@ -15,15 +15,12 @@ func Migrate(db *sql.DB) error {
 	// Применяем миграции
 	err := goose.Up(db, "migrations")
 	if err != nil {
-		// Игнорируем ТОЛЬКО ошибки "already exists"
 		if strings.Contains(err.Error(), "already exists") {
 			zap.L().Info("Таблицы или индексы уже существуют (это нормально)")
 			return nil
 		}
-		// Все другие ошибки - критичные
 		return err
 	}
-
 	zap.L().Info("Миграции применены успешно")
 	return nil
 }

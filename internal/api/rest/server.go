@@ -2,6 +2,7 @@ package rest
 
 import (
 	"context"
+	_ "crypto-rates/docs"
 	"crypto-rates/internal/service"
 	"fmt"
 	"go.uber.org/zap"
@@ -32,6 +33,10 @@ func NewServer(port string, rateService *service.RateService) *Server {
 		fmt.Fprintf(w, `{"status": "ok", "timestamp": "%s"}`, time.Now().Format(time.RFC3339))
 	})
 
+	mux.HandleFunc("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./docs/swagger.json")
+	})
+
 	server := &http.Server{
 		Addr:         ":" + port,
 		Handler:      mux,
@@ -49,10 +54,14 @@ func (s *Server) Start() error {
 	zap.L().Info("Запуск REST API сервера", zap.String("address", s.server.Addr))
 
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("REST API server error: %w", err)
+		return fmt.Errorf("ошибка REST API сервера: %w", err)
 	}
 
 	return nil
+}
+
+func swaggerHandler(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/swagger/index.html", http.StatusFound)
 }
 
 func (s *Server) Stop(ctx context.Context) error {

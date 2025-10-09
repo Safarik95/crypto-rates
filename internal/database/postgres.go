@@ -33,6 +33,5 @@ func NewPostgresConnection(cfg *config.Config) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ошибка ping БД: %w", err)
 	}
-
 	return db, nil
 }

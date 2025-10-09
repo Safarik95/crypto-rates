@@ -1,0 +1,87 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Сервис для отслеживания курсов криптовалют",
+        "title": "Crypto Rates API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/rates": {
+            "get": {
+                "tags": [
+                    "rates"
+                ],
+                "summary": "Получить все курсы",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rest.RatesResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/rates/{cryptocurrency}": {
+            "get": {
+                "tags": [
+                    "rates"
+                ],
+                "summary": "Получить курс валюты",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "BTC или ETH",
+                        "name": "cryptocurrency",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rest.RateResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "rest.RateResponse": {
+            "type": "object",
+            "properties": {
+                "change_1h": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "max_price_24h": {
+                    "type": "number"
+                },
+                "min_price_24h": {
+                    "type": "number"
+                },
+                "price": {
+                    "type": "number"
+                }
+            }
+        },
+        "rest.RatesResponse": {
+            "type": "object",
+            "properties": {
+                "rates": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/rest.RateResponse"
+                    }
+                }
+            }
+        }
+    }
+}

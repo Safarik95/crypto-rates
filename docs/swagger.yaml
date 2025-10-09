@@ -1,0 +1,56 @@
+basePath: /
+definitions:
+  rest.RateResponse:
+    properties:
+      change_1h:
+        type: string
+      currency:
+        type: string
+      max_price_24h:
+        type: number
+      min_price_24h:
+        type: number
+      price:
+        type: number
+    type: object
+  rest.RatesResponse:
+    properties:
+      rates:
+        items:
+          $ref: '#/definitions/rest.RateResponse'
+        type: array
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Сервис для отслеживания курсов криптовалют
+  title: Crypto Rates API
+  version: "1.0"
+paths:
+  /rates:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.RatesResponse'
+      summary: Получить все курсы
+      tags:
+      - rates
+  /rates/{cryptocurrency}:
+    get:
+      parameters:
+      - description: BTC или ETH
+        in: path
+        name: cryptocurrency
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rest.RateResponse'
+      summary: Получить курс валюты
+      tags:
+      - rates
+swagger: "2.0"

@@ -14,23 +14,18 @@ func TestRateService_FetchAndStoreRates_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Создаем моки
 	mockBinance := mocks.NewMockBinanceClientInterface(ctrl)
 	mockRepo := mocks.NewMockRateRepositoryInterface(ctrl)
 
-	// Настраиваем ожидания
 	mockBinance.EXPECT().GetRate("BTC").Return(50000.0, nil)
 	mockBinance.EXPECT().GetRate("ETH").Return(3000.0, nil)
 	mockRepo.EXPECT().SaveRate("BTC", 50000.0).Return(nil)
 	mockRepo.EXPECT().SaveRate("ETH", 3000.0).Return(nil)
 
-	// Создаем сервис с моками
 	rateService := service.NewRateService(mockBinance, mockRepo)
 
-	// Вызываем тестируемый метод
 	err := rateService.FetchAndStoreRates()
 
-	// Проверяем результат
 	assert.NoError(t, err)
 }
 

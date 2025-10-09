@@ -71,6 +71,6 @@ func formatRatesMessageTest(rates map[string]*database.RateInfo, title string) s
 		))
 	}
 
-	sb.WriteString("_Updated every 5 minutes_")
+	sb.WriteString("_Обновляется каждые 5 минут_")
 	return sb.String()
 }

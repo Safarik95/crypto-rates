@@ -40,7 +40,6 @@ func (b *Bot) handleStart(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 }
 
 func (b *Bot) handleRates(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	// Все курсы
 	rates := b.service.GetAllRateInfo()
 	title := "Текущие курсы:"
 
@@ -54,7 +53,6 @@ func (b *Bot) handleRates(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 }
 
 func (b *Bot) handleBTC(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	// Только BTC
 	rates := b.service.GetAllRateInfo()
 
 	if btcInfo, exists := rates["BTC"]; exists {
@@ -67,7 +65,6 @@ func (b *Bot) handleBTC(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 }
 
 func (b *Bot) handleETH(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	// Только ETH
 	rates := b.service.GetAllRateInfo()
 
 	if ethInfo, exists := rates["ETH"]; exists {

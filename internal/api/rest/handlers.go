@@ -19,7 +19,11 @@ func NewHandlers(service *service.RateService) *Handlers {
 	}
 }
 
-// GetRates возвращает все курсы
+// GetRates godoc
+// @Summary Получить все курсы
+// @Tags rates
+// @Success 200 {object} RatesResponse
+// @Router /rates [get]
 func (h *Handlers) GetRates(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.sendError(w, "Метод не разрешен", http.StatusMethodNotAllowed)
@@ -47,14 +51,18 @@ func (h *Handlers) GetRates(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-// GetRate возвращает курс конкретной валюты
+// GetRate godoc
+// @Summary Получить курс валюты
+// @Tags rates
+// @Param cryptocurrency path string true "BTC или ETH"
+// @Success 200 {object} RateResponse
+// @Router /rates/{cryptocurrency} [get]
 func (h *Handlers) GetRate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		h.sendError(w, "Метод не разрешен", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Извлекаем currency из URL пути /rates/{currency}
 	path := strings.TrimPrefix(r.URL.Path, "/rates/")
 	currency := strings.ToUpper(strings.TrimSpace(path))
 
@@ -63,14 +71,12 @@ func (h *Handlers) GetRate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Получаем данные для одной валюты
 	rateInfo, err := h.service.GetRateInfo(currency)
 	if err != nil {
 		h.sendError(w, fmt.Sprintf("Валюта %s не найдена", currency), http.StatusNotFound)
 		return
 	}
 
-	// Для одного курса возвращаем объект, а не массив
 	response := ConvertRateInfo(rateInfo)
 	h.sendJSON(w, response, http.StatusOK)
 
@@ -79,7 +85,6 @@ func (h *Handlers) GetRate(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-// sendJSON отправляет JSON ответ
 func (h *Handlers) sendJSON(w http.ResponseWriter, data interface{}, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -89,7 +94,6 @@ func (h *Handlers) sendJSON(w http.ResponseWriter, data interface{}, statusCode 
 	}
 }
 
-// sendError отправляет ошибку
 func (h *Handlers) sendError(w http.ResponseWriter, message string, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)

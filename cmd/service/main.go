@@ -1,3 +1,9 @@
+// @title Crypto Rates API
+// @version 1.0
+// @description Сервис для отслеживания курсов криптовалют
+
+// @host localhost:8080
+// @BasePath /
 package main
 
 import (
@@ -15,17 +21,14 @@ import (
 )
 
 func main() {
-	// Инициализируем логгер
 	log, err := logger.New()
 	if err != nil {
 		panic(err)
 	}
 	defer log.Sync()
 
-	// Устанавливаем глобальный логгер
 	zap.ReplaceGlobals(log)
 
-	// Загружаем конфигурацию
 	cfg, err := config.Load()
 	if err != nil {
 		zap.L().Fatal("Ошибка загрузки конфигурации", zap.Error(err))
@@ -35,19 +38,16 @@ func main() {
 		zap.L().Fatal("База данных недоступна", zap.Error(err))
 	}
 
-	// Подключаемся к БД
 	db, err := database.NewPostgresConnection(cfg)
 	if err != nil {
 		zap.L().Fatal("Ошибка подключения к БД", zap.Error(err))
 	}
 	defer db.Close()
 
-	// Применяем миграции
 	if err := database.Migrate(db); err != nil {
 		zap.L().Error("Ошибка применения миграций", zap.Error(err))
 	}
 
-	// Инициализируем сервисы
 	binanceClient := api.NewBinanceClient(cfg.BinanceAPIURL)
 	rateRepo := database.NewRateRepository(db)
 	rateService := service.NewRateService(binanceClient, rateRepo)
@@ -77,7 +77,6 @@ func main() {
 		zap.L().Warn("TELEGRAM_BOT_TOKEN не установлен, бот не запущен")
 	}
 
-	// Настраиваем интервал обновления
 	interval := time.Duration(cfg.UpdateIntervalMinutes) * time.Minute
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -87,15 +86,12 @@ func main() {
 		zap.String("API", cfg.BinanceAPIURL),
 	)
 
-	// Первый запуск
 	if err := rateService.FetchAndStoreRates(); err != nil {
 		zap.L().Error("Ошибка первого обновления", zap.Error(err))
 	}
 
-	// Показываем информацию о курсах после первого обновления
 	showRateInfo(rateService)
 
-	// Основной цикл
 	for range ticker.C {
 		zap.L().Debug("Запуск обновления курсов")
 
@@ -103,7 +99,6 @@ func main() {
 			zap.L().Error("Ошибка обновления курсов", zap.Error(err))
 		}
 
-		// Показываем информацию каждые 5 циклов (чтобы не засорять логи)
 		showRateInfo(rateService)
 	}
 }
@@ -138,7 +133,6 @@ func waitForDB(cfg *config.Config) error {
 	}
 }
 
-// showRateInfo показывает информацию о курсах
 func showRateInfo(rateService *service.RateService) {
 	zap.L().Info("=== ИНФОРМАЦИЯ О КУРСАХ ===")
 
@@ -152,9 +146,8 @@ func showRateInfo(rateService *service.RateService) {
 			zap.String("изменение_за_час", info.Change1h),
 		)
 
-		// Красивый вывод в консоль
 		fmt.Printf("%s: $%.2f (24ч: $%.2f - $%.2f) %s\n",
 			currency, info.CurrentPrice, info.MinPrice24h, info.MaxPrice24h, info.Change1h)
 	}
-	fmt.Println() // Пустая строка для разделения
+	fmt.Println()
 }
