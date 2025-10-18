@@ -2,11 +2,12 @@ package rest
 
 import (
 	"crypto-rates/internal/service"
-	"encoding/json"
-	"fmt"
+	"crypto-rates/internal/types"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type Handlers struct {
@@ -24,15 +25,11 @@ func NewHandlers(service *service.RateService) *Handlers {
 // @Tags rates
 // @Success 200 {object} RatesResponse
 // @Router /rates [get]
-func (h *Handlers) GetRates(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.sendError(w, "Метод не разрешен", http.StatusMethodNotAllowed)
-		return
-	}
-
-	rates := h.service.GetAllRateInfo()
+func (h *Handlers) GetRates(c *gin.Context) {
+	rates := h.service.GetAllRateInfo(c.Request.Context())
 	if len(rates) == 0 {
-		h.sendError(w, "Нет данных о курсах", http.StatusNotFound)
+		c.JSON(http.StatusNotFound, ErrorResponse{Error: "No rate data available"})
+
 		return
 	}
 
@@ -43,12 +40,8 @@ func (h *Handlers) GetRates(w http.ResponseWriter, r *http.Request) {
 	for _, rate := range rates {
 		response.Rates = append(response.Rates, ConvertRateInfo(rate))
 	}
-
-	h.sendJSON(w, response, http.StatusOK)
-
-	zap.L().Debug("REST API: возвращены все курсы",
-		zap.Int("количество", len(rates)),
-	)
+	c.JSON(http.StatusOK, response)
+	zap.L().Debug("REST API: returned all rates", zap.Int("count", len(rates)))
 }
 
 // GetRate godoc
@@ -57,54 +50,33 @@ func (h *Handlers) GetRates(w http.ResponseWriter, r *http.Request) {
 // @Param cryptocurrency path string true "BTC или ETH"
 // @Success 200 {object} RateResponse
 // @Router /rates/{cryptocurrency} [get]
-func (h *Handlers) GetRate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.sendError(w, "Метод не разрешен", http.StatusMethodNotAllowed)
-		return
-	}
-
-	path := strings.TrimPrefix(r.URL.Path, "/rates/")
-	currency := strings.ToUpper(strings.TrimSpace(path))
+func (h *Handlers) GetRate(c *gin.Context) {
+	currency := strings.ToUpper(c.Param("cryptocurrency"))
 
 	if currency == "" {
-		h.sendError(w, "Необходимо указать валюту", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Currency parameter required"})
+
 		return
 	}
 
-	rateInfo, err := h.service.GetRateInfo(currency)
+	rateInfo, err := h.service.GetRateInfo(c.Request.Context(), types.Currency(currency))
 	if err != nil {
-		h.sendError(w, fmt.Sprintf("Валюта %s не найдена", currency), http.StatusNotFound)
+		c.JSON(http.StatusNotFound, ErrorResponse{Error: "Currency " + currency + " not found"})
+
 		return
 	}
-
 	response := ConvertRateInfo(rateInfo)
-	h.sendJSON(w, response, http.StatusOK)
-
-	zap.L().Debug("REST API: возвращен курс для валюты",
-		zap.String("валюта", currency),
-	)
+	c.JSON(http.StatusOK, response)
+	zap.L().Debug("REST API: returned rate for currency", zap.String("currency", currency))
 }
 
-func (h *Handlers) sendJSON(w http.ResponseWriter, data interface{}, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		zap.L().Error("Ошибка кодирования JSON ответа", zap.Error(err))
-	}
+func (h *Handlers) HealthCheck(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":    "ok",
+		"timestamp": time.Now().Format(time.RFC3339),
+	})
 }
 
-func (h *Handlers) sendError(w http.ResponseWriter, message string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-
-	errorResponse := ErrorResponse{Error: message}
-	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-		zap.L().Error("Ошибка кодирования ответа с ошибкой", zap.Error(err))
-	}
-
-	zap.L().Warn("Ошибка REST API",
-		zap.String("ошибка", message),
-		zap.Int("код_статуса", statusCode),
-	)
+func (h *Handlers) SwaggerJSON(c *gin.Context) {
+	c.File("./docs/swagger.json")
 }

@@ -4,6 +4,18 @@ import (
 	"github.com/joho/godotenv"
 	"os"
 	"strconv"
+	"time"
+)
+
+const (
+	HTTPClientTimeout     = 10 * time.Second
+	DatabasePingTimeout   = 5 * time.Second
+	ServerReadTimeout     = 10 * time.Second
+	ServerWriteTimeout    = 10 * time.Second
+	ServerIdleTimeout     = 60 * time.Second
+	BinanceRequestTimeout = 10 * time.Second
+	DatabaseQueryTimeout  = 5 * time.Second
+	InitialRatesTimeout   = 30 * time.Second
 )
 
 type Config struct {
@@ -20,7 +32,7 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	_ = godotenv.Load() // Игнорируем ошибку если файла нет
+	_ = godotenv.Load()
 
 	return &Config{
 		DBHost:     getEnv("DB_HOST", "localhost"),

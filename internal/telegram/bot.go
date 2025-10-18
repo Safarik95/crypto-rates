@@ -26,10 +26,10 @@ func NewBot(token string, rateService *service.RateService) *Bot {
 func (b *Bot) Start() error {
 	bot, err := tgbotapi.NewBotAPI(b.token)
 	if err != nil {
-		return fmt.Errorf("ошибка создания бота: %w", err)
+		return fmt.Errorf("bot creation error: %w", err)
 	}
 	bot.Debug = false
-	zap.L().Info("Авторизован", zap.String("аккаунт", bot.Self.UserName))
+	zap.L().Info("Authorized", zap.String("account", bot.Self.UserName))
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
@@ -40,7 +40,7 @@ func (b *Bot) Start() error {
 		if update.Message == nil {
 			continue
 		}
-		zap.L().Debug("Получено сообщение",
+		zap.L().Debug("Message received",
 			zap.Int64("user_id", update.Message.From.ID),
 			zap.String("text", update.Message.Text))
 		b.handleMessage(bot, update.Message)

@@ -1,11 +1,19 @@
 package api_test
 
 import (
-	"crypto-rates/internal/api"
+	"context"
+	"crypto-rates/internal/types"
+	"crypto-rates/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+)
+
+const (
+	testHTTPClientTimeout = 10 * time.Second
+	testRequestTimeout    = 10 * time.Second
 )
 
 func TestBinanceClient_GetRate_Success(t *testing.T) {
@@ -18,10 +26,10 @@ func TestBinanceClient_GetRate_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := api.NewBinanceClient(server.URL + "/api/v3")
-	price, err := client.GetRate("BTC")
+	client := api.NewBinanceClient(server.URL+"/api/v3", testHTTPClientTimeout, testRequestTimeout)
+	price, err := client.GetRate(context.Background(), types.Currency("BTC"))
 	assert.NoError(t, err)
-	assert.Equal(t, 50000.00, price) // ИСПРАВЛЕНО
+	assert.Equal(t, 50000.00, price)
 }
 
 func TestBinanceClient_GetRate_InvalidResponse(t *testing.T) {
@@ -30,10 +38,11 @@ func TestBinanceClient_GetRate_InvalidResponse(t *testing.T) {
 		w.Write([]byte(`invalid json`))
 	}))
 	defer server.Close()
-	client := api.NewBinanceClient(server.URL + "/api/v3")
-	price, err := client.GetRate("BTC")
+
+	client := api.NewBinanceClient(server.URL+"/api/v3", testHTTPClientTimeout, testRequestTimeout)
+	price, err := client.GetRate(context.Background(), types.Currency("BTC"))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "ошибка парсинга JSON")
+	assert.Contains(t, err.Error(), "JSON parsing error")
 	assert.Equal(t, 0.0, price)
 }
 
@@ -42,10 +51,11 @@ func TestBinanceClient_GetRate_HTTPError(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
-	client := api.NewBinanceClient(server.URL + "/api/v3")
-	price, err := client.GetRate("BTC")
+
+	client := api.NewBinanceClient(server.URL+"/api/v3", testHTTPClientTimeout, testRequestTimeout)
+	price, err := client.GetRate(context.Background(), types.Currency("BTC"))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "API вернуло статус: 500")
+	assert.Contains(t, err.Error(), "API returned status: 500")
 	assert.Equal(t, 0.0, price)
 }
 
@@ -58,9 +68,9 @@ func TestBinanceClient_GetRate_InvalidPrice(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := api.NewBinanceClient(server.URL + "/api/v3")
-	price, err := client.GetRate("BTC")
-	assert.Error(t, err) // ДОБАВЛЕНО
-	assert.Contains(t, err.Error(), "ошибка конвертации цены")
+	client := api.NewBinanceClient(server.URL+"/api/v3", testHTTPClientTimeout, testRequestTimeout)
+	price, err := client.GetRate(context.Background(), types.Currency("BTC"))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "price conversion error")
 	assert.Equal(t, 0.0, price)
 }

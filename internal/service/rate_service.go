@@ -1,8 +1,10 @@
 package service
 
 import (
-	"crypto-rates/internal/api"
+	"context"
 	"crypto-rates/internal/database"
+	"crypto-rates/internal/types"
+	"crypto-rates/pkg/api"
 	"fmt"
 	"go.uber.org/zap"
 )
@@ -19,59 +21,58 @@ func NewRateService(binanceClient api.BinanceClientInterface, rateRepo database.
 	}
 }
 
-func (s *RateService) FetchAndStoreRates() error {
-	currencies := []string{"BTC", "ETH"}
+func (s *RateService) FetchAndStoreRates(ctx context.Context) error {
+	currencies := []types.Currency{types.BTC, types.ETH}
 
 	for _, currency := range currencies {
-		price, err := s.binanceClient.GetRate(currency)
+		price, err := s.binanceClient.GetRate(ctx, currency)
 		if err != nil {
-			return fmt.Errorf("ошибка получения %s: %w", currency, err)
+			return fmt.Errorf("failed to get %s rate: %w", currency, err)
 		}
 
-		err = s.rateRepo.SaveRate(currency, price)
+		err = s.rateRepo.SaveRate(ctx, currency, price)
 		if err != nil {
-			return fmt.Errorf("ошибка сохранения %s: %w", currency, err)
+			return fmt.Errorf("failed to save %s rate: %w", currency, err)
 		}
 
-		zap.L().Info("Курс обновлен",
-			zap.String("валюта", currency),
-			zap.Float64("цена", price),
+		zap.L().Info("Rate updated",
+			zap.String("currency", currency.String()),
+			zap.Float64("price", price),
 		)
 	}
 
-	zap.L().Info("Все курсы обновлены")
+	zap.L().Info("All rates updated")
 	return nil
 }
 
-func (s *RateService) GetRateInfo(currency string) (*database.RateInfo, error) {
-	rateInfo, err := s.rateRepo.GetRateInfo(currency)
+func (s *RateService) GetRateInfo(ctx context.Context, currency types.Currency) (*database.RateInfo, error) {
+	rateInfo, err := s.rateRepo.GetRateInfo(ctx, currency)
 	if err != nil {
-		zap.L().Error("Ошибка получения информации о курсе",
-			zap.String("валюта", currency),
+		zap.L().Error("Error getting rate info",
+			zap.String("currency", currency.String()),
 			zap.Error(err),
 		)
-		return nil, fmt.Errorf("ошибка получения информации для %s: %w", currency, err)
+		return nil, fmt.Errorf("failed to get info for %s: %w", currency, err)
 	}
 
 	return rateInfo, nil
 }
 
-func (s *RateService) GetAllRateInfo() map[string]*database.RateInfo {
-	currencies := []string{"BTC", "ETH"}
-	results := make(map[string]*database.RateInfo)
+func (s *RateService) GetAllRateInfo(ctx context.Context) map[types.Currency]*database.RateInfo {
+	currencies := []types.Currency{types.BTC, types.ETH}
+	results := make(map[types.Currency]*database.RateInfo, len(currencies))
 
 	for _, currency := range currencies {
-		zap.L().Debug("Получение информации для валюты", zap.String("валюта", currency))
-
-		info, err := s.rateRepo.GetRateInfo(currency)
+		info, err := s.rateRepo.GetRateInfo(ctx, currency)
 		if err != nil {
-			zap.L().Error("Ошибка получения информации",
-				zap.String("валюта", currency),
+			zap.L().Error("Error getting rate info",
+				zap.String("currency", currency.String()),
 				zap.Error(err),
 			)
 			continue
 		}
 		results[currency] = info
 	}
+
 	return results
 }

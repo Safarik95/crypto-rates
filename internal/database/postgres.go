@@ -23,15 +23,19 @@ func NewPostgresConnection(cfg *config.Config) (*sql.DB, error) {
 
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка открытия соединения: %w", err)
+		return nil, fmt.Errorf("error opening connection: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	db.SetConnMaxLifetime(time.Hour)
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+
+	ctx, cancel := context.WithTimeout(context.Background(), config.DatabasePingTimeout)
 	defer cancel()
 
 	err = db.PingContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка ping БД: %w", err)
+		return nil, fmt.Errorf("DB ping error: %w", err)
 	}
 	return db, nil
 }

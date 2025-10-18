@@ -3,68 +3,46 @@ package rest
 import (
 	"context"
 	_ "crypto-rates/docs"
+	"crypto-rates/internal/config"
 	"crypto-rates/internal/service"
-	"fmt"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"net/http"
-	"time"
 )
 
 type Server struct {
+	router *gin.Engine
 	server *http.Server
 }
 
 func NewServer(port string, rateService *service.RateService) *Server {
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.Default()
 	handlers := NewHandlers(rateService)
 
-	mux := http.NewServeMux()
-
-	// Раздельные маршруты
-	mux.HandleFunc("/rates", handlers.GetRates) // Только /rates
-	mux.HandleFunc("/rates/", handlers.GetRate) // /rates/что-угодно
-
-	// Health check
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status": "ok", "timestamp": "%s"}`, time.Now().Format(time.RFC3339))
-	})
-
-	mux.HandleFunc("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./docs/swagger.json")
-	})
-
-	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
+	router.GET("/rates", handlers.GetRates)
+	router.GET("/rates/:cryptocurrency", handlers.GetRate)
+	router.GET("/health", handlers.HealthCheck)
+	router.GET("/swagger.json", handlers.SwaggerJSON)
 
 	return &Server{
-		server: server,
+		router: router,
+		server: &http.Server{
+			Addr:         ":" + port,
+			Handler:      router,
+			ReadTimeout:  config.ServerReadTimeout,
+			WriteTimeout: config.ServerWriteTimeout,
+			IdleTimeout:  config.ServerIdleTimeout,
+		},
 	}
 }
 
 func (s *Server) Start() error {
-	zap.L().Info("Запуск REST API сервера", zap.String("address", s.server.Addr))
-
-	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("ошибка REST API сервера: %w", err)
-	}
-
-	return nil
-}
-
-func swaggerHandler(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/swagger/index.html", http.StatusFound)
+	zap.L().Info("starting REST API server", zap.String("address", s.server.Addr))
+	return s.server.ListenAndServe()
 }
 
 func (s *Server) Stop(ctx context.Context) error {
-	zap.L().Info("Остановка REST API сервера")
+	zap.L().Info("stopping REST API server")
 	return s.server.Shutdown(ctx)
 }

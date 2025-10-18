@@ -8,15 +8,16 @@ package main
 
 import (
 	"context"
-	"crypto-rates/internal/api"
 	"crypto-rates/internal/api/rest"
 	"crypto-rates/internal/config"
 	"crypto-rates/internal/database"
-	"crypto-rates/internal/logger"
 	"crypto-rates/internal/service"
 	"crypto-rates/internal/telegram"
+	"crypto-rates/pkg/api"
+	"crypto-rates/pkg/logger"
 	"fmt"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 	"time"
 )
 
@@ -26,107 +27,119 @@ func main() {
 		panic(err)
 	}
 	defer log.Sync()
-
 	zap.ReplaceGlobals(log)
 
 	cfg, err := config.Load()
 	if err != nil {
-		zap.L().Fatal("Ошибка загрузки конфигурации", zap.Error(err))
+		zap.L().Fatal("Failed to load configuration", zap.Error(err))
 	}
 
 	if err := waitForDB(cfg); err != nil {
-		zap.L().Fatal("База данных недоступна", zap.Error(err))
+		zap.L().Fatal("Database unavailable", zap.Error(err))
 	}
 
 	db, err := database.NewPostgresConnection(cfg)
 	if err != nil {
-		zap.L().Fatal("Ошибка подключения к БД", zap.Error(err))
+		zap.L().Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer db.Close()
 
 	if err := database.Migrate(db); err != nil {
-		zap.L().Error("Ошибка применения миграций", zap.Error(err))
+		zap.L().Error("Migration error", zap.Error(err))
 	}
 
-	binanceClient := api.NewBinanceClient(cfg.BinanceAPIURL)
+	binanceClient := api.NewBinanceClient(cfg.BinanceAPIURL, config.HTTPClientTimeout, config.BinanceRequestTimeout)
 	rateRepo := database.NewRateRepository(db)
 	rateService := service.NewRateService(binanceClient, rateRepo)
-
 	restServer := rest.NewServer(cfg.APIPort, rateService)
-	go func() {
-		zap.L().Info("Запуск REST API сервера...")
-		if err := restServer.Start(); err != nil {
-			zap.L().Error("Ошибка REST API сервера", zap.Error(err))
-		}
-	}()
-	defer restServer.Stop(context.Background())
 
+	var telegramBot *telegram.Bot
+
+	g, ctx := errgroup.WithContext(context.Background())
+
+	// REST API server
+	g.Go(func() error {
+		zap.L().Info("Starting REST API server...")
+		return restServer.Start()
+	})
+
+	// Telegram bot
 	if cfg.TelegramBotToken != "" {
-		telegramBot := telegram.NewBot(cfg.TelegramBotToken, rateService)
-
-		go func() {
-			zap.L().Info("Запуск Telegram бота...")
-			if err := telegramBot.Start(); err != nil {
-				zap.L().Error("Ошибка Telegram бота", zap.Error(err))
-			}
-		}()
-		defer telegramBot.Stop()
-
-		zap.L().Info("Telegram бот запущен")
+		telegramBot = telegram.NewBot(cfg.TelegramBotToken, rateService)
+		g.Go(func() error {
+			zap.L().Info("Starting Telegram bot...")
+			return telegramBot.Start()
+		})
+		zap.L().Info("Telegram bot started")
 	} else {
-		zap.L().Warn("TELEGRAM_BOT_TOKEN не установлен, бот не запущен")
+		zap.L().Warn("TELEGRAM_BOT_TOKEN not set, bot not started")
 	}
 
-	interval := time.Duration(cfg.UpdateIntervalMinutes) * time.Minute
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	g.Go(func() error {
+		interval := time.Duration(cfg.UpdateIntervalMinutes) * time.Minute
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 
-	zap.L().Info("Сервис запущен",
-		zap.String("интервал", interval.String()),
+		initialCtx, initialCancel := context.WithTimeout(ctx, config.InitialRatesTimeout)
+		defer initialCancel()
+		if err := rateService.FetchAndStoreRates(initialCtx); err != nil {
+			zap.L().Error("First update error", zap.Error(err))
+		}
+		showRateInfo(rateService)
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := rateService.FetchAndStoreRates(ctx); err != nil {
+					zap.L().Error("Update rates error", zap.Error(err))
+				}
+				showRateInfo(rateService)
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	})
+
+	defer restServer.Stop(context.Background())
+	if telegramBot != nil {
+		defer telegramBot.Stop()
+	}
+
+	zap.L().Info("Service started",
+		zap.Int("interval", cfg.UpdateIntervalMinutes),
 		zap.String("API", cfg.BinanceAPIURL),
 	)
 
-	if err := rateService.FetchAndStoreRates(); err != nil {
-		zap.L().Error("Ошибка первого обновления", zap.Error(err))
-	}
-
-	showRateInfo(rateService)
-
-	for range ticker.C {
-		zap.L().Debug("Запуск обновления курсов")
-
-		if err := rateService.FetchAndStoreRates(); err != nil {
-			zap.L().Error("Ошибка обновления курсов", zap.Error(err))
-		}
-
-		showRateInfo(rateService)
+	// Wait for all goroutines
+	if err := g.Wait(); err != nil {
+		zap.L().Error("Error in one of goroutines", zap.Error(err))
 	}
 }
 
 func waitForDB(cfg *config.Config) error {
-	zap.L().Info("Ожидание подключения к базе данных...",
-		zap.String("хост", cfg.DBHost),
-		zap.Int("порт", cfg.DBPort),
+	zap.L().Info("Waiting for database connection...",
+		zap.String("host", cfg.DBHost),
+		zap.Int("port", cfg.DBPort),
 	)
 
-	timeout := time.Second * 30
+	timeout := 30 * time.Second
 	start := time.Now()
 
 	for {
 		db, err := database.NewPostgresConnection(cfg)
 		if err == nil {
 			db.Close()
-			zap.L().Info("База данных доступна",
-				zap.Duration("время_ожидания", time.Since(start)),
+			zap.L().Info("Database available",
+				zap.Duration("wait_time", time.Since(start)),
 			)
 			return nil
 		}
 
 		if time.Since(start) > timeout {
-			return fmt.Errorf("таймаут подключения к БД: %v", err)
+			return fmt.Errorf("database connection timeout: %v", err)
 		}
 
-		zap.L().Debug("База данных еще не доступна, повторная попытка...",
+		zap.L().Debug("Database not available yet, retrying...",
 			zap.Error(err),
 		)
 		time.Sleep(2 * time.Second)
@@ -134,19 +147,18 @@ func waitForDB(cfg *config.Config) error {
 }
 
 func showRateInfo(rateService *service.RateService) {
-	zap.L().Info("=== ИНФОРМАЦИЯ О КУРСАХ ===")
-
-	rateInfo := rateService.GetAllRateInfo()
+	zap.L().Info("=== RATES INFORMATION ===")
+	ctx := context.Background()
+	rateInfo := rateService.GetAllRateInfo(ctx)
 	for currency, info := range rateInfo {
-		zap.L().Info("Курс",
-			zap.String("валюта", currency),
-			zap.Float64("текущая_цена", info.CurrentPrice),
-			zap.Float64("мин_24ч", info.MinPrice24h),
-			zap.Float64("макс_24ч", info.MaxPrice24h),
-			zap.String("изменение_за_час", info.Change1h),
+		zap.L().Info("Rate",
+			zap.String("currency", currency.String()),
+			zap.Float64("current_price", info.CurrentPrice),
+			zap.Float64("min_24h", info.MinPrice24h),
+			zap.Float64("max_24h", info.MaxPrice24h),
+			zap.String("change_1h", info.Change1h),
 		)
-
-		fmt.Printf("%s: $%.2f (24ч: $%.2f - $%.2f) %s\n",
+		fmt.Printf("%s: $%.2f (24h: $%.2f - $%.2f) %s\n",
 			currency, info.CurrentPrice, info.MinPrice24h, info.MaxPrice24h, info.Change1h)
 	}
 	fmt.Println()

@@ -10,7 +10,9 @@
 package mocks
 
 import (
+	context "context"
 	database "crypto-rates/internal/database"
+	types "crypto-rates/internal/types"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -41,53 +43,53 @@ func (m *MockRateRepositoryInterface) EXPECT() *MockRateRepositoryInterfaceMockR
 }
 
 // GetCurrentPrice mocks base method.
-func (m *MockRateRepositoryInterface) GetCurrentPrice(currency string) (float64, error) {
+func (m *MockRateRepositoryInterface) GetCurrentPrice(ctx context.Context, currency types.Currency) (float64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCurrentPrice", currency)
+	ret := m.ctrl.Call(m, "GetCurrentPrice", ctx, currency)
 	ret0, _ := ret[0].(float64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCurrentPrice indicates an expected call of GetCurrentPrice.
-func (mr *MockRateRepositoryInterfaceMockRecorder) GetCurrentPrice(currency any) *gomock.Call {
+func (mr *MockRateRepositoryInterfaceMockRecorder) GetCurrentPrice(ctx, currency any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentPrice", reflect.TypeOf((*MockRateRepositoryInterface)(nil).GetCurrentPrice), currency)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentPrice", reflect.TypeOf((*MockRateRepositoryInterface)(nil).GetCurrentPrice), ctx, currency)
 }
 
 // GetHourlyChangePercent mocks base method.
-func (m *MockRateRepositoryInterface) GetHourlyChangePercent(currency string) string {
+func (m *MockRateRepositoryInterface) GetHourlyChangePercent(ctx context.Context, currency types.Currency) string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetHourlyChangePercent", currency)
+	ret := m.ctrl.Call(m, "GetHourlyChangePercent", ctx, currency)
 	ret0, _ := ret[0].(string)
 	return ret0
 }
 
 // GetHourlyChangePercent indicates an expected call of GetHourlyChangePercent.
-func (mr *MockRateRepositoryInterfaceMockRecorder) GetHourlyChangePercent(currency any) *gomock.Call {
+func (mr *MockRateRepositoryInterfaceMockRecorder) GetHourlyChangePercent(ctx, currency any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHourlyChangePercent", reflect.TypeOf((*MockRateRepositoryInterface)(nil).GetHourlyChangePercent), currency)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHourlyChangePercent", reflect.TypeOf((*MockRateRepositoryInterface)(nil).GetHourlyChangePercent), ctx, currency)
 }
 
 // GetRateInfo mocks base method.
-func (m *MockRateRepositoryInterface) GetRateInfo(currency string) (*database.RateInfo, error) {
+func (m *MockRateRepositoryInterface) GetRateInfo(ctx context.Context, currency types.Currency) (*database.RateInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRateInfo", currency)
+	ret := m.ctrl.Call(m, "GetRateInfo", ctx, currency)
 	ret0, _ := ret[0].(*database.RateInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetRateInfo indicates an expected call of GetRateInfo.
-func (mr *MockRateRepositoryInterfaceMockRecorder) GetRateInfo(currency any) *gomock.Call {
+func (mr *MockRateRepositoryInterfaceMockRecorder) GetRateInfo(ctx, currency any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRateInfo", reflect.TypeOf((*MockRateRepositoryInterface)(nil).GetRateInfo), currency)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRateInfo", reflect.TypeOf((*MockRateRepositoryInterface)(nil).GetRateInfo), ctx, currency)
 }
 
 // GetSimpleDailyStats mocks base method.
-func (m *MockRateRepositoryInterface) GetSimpleDailyStats(currency string) (float64, float64, error) {
+func (m *MockRateRepositoryInterface) GetSimpleDailyStats(ctx context.Context, currency types.Currency) (float64, float64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSimpleDailyStats", currency)
+	ret := m.ctrl.Call(m, "GetSimpleDailyStats", ctx, currency)
 	ret0, _ := ret[0].(float64)
 	ret1, _ := ret[1].(float64)
 	ret2, _ := ret[2].(error)
@@ -95,21 +97,21 @@ func (m *MockRateRepositoryInterface) GetSimpleDailyStats(currency string) (floa
 }
 
 // GetSimpleDailyStats indicates an expected call of GetSimpleDailyStats.
-func (mr *MockRateRepositoryInterfaceMockRecorder) GetSimpleDailyStats(currency any) *gomock.Call {
+func (mr *MockRateRepositoryInterfaceMockRecorder) GetSimpleDailyStats(ctx, currency any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSimpleDailyStats", reflect.TypeOf((*MockRateRepositoryInterface)(nil).GetSimpleDailyStats), currency)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSimpleDailyStats", reflect.TypeOf((*MockRateRepositoryInterface)(nil).GetSimpleDailyStats), ctx, currency)
 }
 
 // SaveRate mocks base method.
-func (m *MockRateRepositoryInterface) SaveRate(currency string, price float64) error {
+func (m *MockRateRepositoryInterface) SaveRate(ctx context.Context, currency types.Currency, price float64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SaveRate", currency, price)
+	ret := m.ctrl.Call(m, "SaveRate", ctx, currency, price)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SaveRate indicates an expected call of SaveRate.
-func (mr *MockRateRepositoryInterfaceMockRecorder) SaveRate(currency, price any) *gomock.Call {
+func (mr *MockRateRepositoryInterfaceMockRecorder) SaveRate(ctx, currency, price any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveRate", reflect.TypeOf((*MockRateRepositoryInterface)(nil).SaveRate), currency, price)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveRate", reflect.TypeOf((*MockRateRepositoryInterface)(nil).SaveRate), ctx, currency, price)
 }

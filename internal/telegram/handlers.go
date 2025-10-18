@@ -1,50 +1,68 @@
 package telegram
 
 import (
+	"context"
 	"crypto-rates/internal/database"
+	"crypto-rates/internal/types"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"time"
+)
+
+const (
+	CommandStart     = "start"
+	CommandRates     = "rates"
+	CommandBTC       = "btc"
+	CommandBitcoin   = "bitcoin"
+	CommandETH       = "eth"
+	CommandEthereum  = "ethereum"
+	CommandStartAuto = "startAuto"
+	CommandStopAuto  = "stopAuto"
 )
 
 func (b *Bot) handleCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	command := message.Command()
 
 	switch command {
-	case "start":
+	case CommandStart:
 		b.handleStart(bot, message)
-	case "rates":
+	case CommandRates:
 		b.handleRates(bot, message)
-	case "btc", "bitcoin": // ← отдельная команда для BTC
-		b.handleBTC(bot, message)
-	case "eth", "ethereum": // ← отдельная команда для ETH
-		b.handleETH(bot, message)
-	case "startAuto":
+	case CommandBTC, CommandBitcoin:
+		b.handleSpecificCurrency(bot, message, types.BTC, "Bitcoin")
+	case CommandETH, CommandEthereum:
+		b.handleSpecificCurrency(bot, message, types.ETH, "Ethereum")
+	case CommandStartAuto:
 		b.handleStartAuto(bot, message)
-	case "stopAuto":
+	case CommandStopAuto:
 		b.handleStopAuto(bot, message)
 	default:
-		b.sendMessage(bot, message.Chat.ID, "Неизвестная команда: "+command)
+		b.sendMessage(bot, message.Chat.ID, "Unknown command: "+command)
 	}
 }
 
 func (b *Bot) handleStart(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	welcomeMsg := `Добро пожаловать в Crypto Rates Bot!
+	welcomeMsg := `Welcome to Crypto Rates Bot!
 
-Доступные команды:
-/rates - все курсы
-/btc или /bitcoin - курс Bitcoin  
-/eth или /ethereum - курс Ethereum
-/startAuto - автоотправка каждые 10 мин
-/stopAuto - остановить автоотправку`
+Available commands:
+/rates - all rates
+/btc or /bitcoin - Bitcoin rate  
+/eth or /ethereum - Ethereum rate
+/startAuto - auto send every 10 min
+/stopAuto - stop auto send`
 
 	b.sendMessage(bot, message.Chat.ID, welcomeMsg)
 }
 
 func (b *Bot) handleRates(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	rates := b.service.GetAllRateInfo()
-	title := "Текущие курсы:"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	rates := b.service.GetAllRateInfo(ctx)
+	title := "Current rates:"
 
 	if len(rates) == 0 {
-		b.sendMessage(bot, message.Chat.ID, "Нет данных о курсах")
+		b.sendMessage(bot, message.Chat.ID, "No data on courses")
 		return
 	}
 
@@ -52,40 +70,31 @@ func (b *Bot) handleRates(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	b.sendMessage(bot, message.Chat.ID, messageText)
 }
 
-func (b *Bot) handleBTC(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	rates := b.service.GetAllRateInfo()
+func (b *Bot) handleSpecificCurrency(bot *tgbotapi.BotAPI, message *tgbotapi.Message, currency types.Currency, name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	if btcInfo, exists := rates["BTC"]; exists {
-		rates = map[string]*database.RateInfo{"BTC": btcInfo}
-		messageText := b.formatRatesMessage(rates, "Курс Bitcoin:")
+	rates := b.service.GetAllRateInfo(ctx)
+
+	if currencyInfo, exists := rates[currency]; exists {
+		ratesMap := map[types.Currency]*database.RateInfo{currency: currencyInfo}
+		messageText := b.formatRatesMessage(ratesMap, fmt.Sprintf("Rate %s:", name))
 		b.sendMessage(bot, message.Chat.ID, messageText)
 	} else {
-		b.sendMessage(bot, message.Chat.ID, "Нет данных по Bitcoin")
-	}
-}
-
-func (b *Bot) handleETH(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	rates := b.service.GetAllRateInfo()
-
-	if ethInfo, exists := rates["ETH"]; exists {
-		rates = map[string]*database.RateInfo{"ETH": ethInfo}
-		messageText := b.formatRatesMessage(rates, "Курс Ethereum:")
-		b.sendMessage(bot, message.Chat.ID, messageText)
-	} else {
-		b.sendMessage(bot, message.Chat.ID, "Нет данных по Ethereum")
+		b.sendMessage(bot, message.Chat.ID, fmt.Sprintf("No data %s", name))
 	}
 }
 
 func (b *Bot) handleStartAuto(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	b.autoSendUsers[message.Chat.ID] = true
-	b.sendMessage(bot, message.Chat.ID, "Автоотправка включена! Курсы будут приходить каждые 10 минут")
+	b.sendMessage(bot, message.Chat.ID, "Auto send enabled! Rates will be sent every 10 minutes")
 }
 
 func (b *Bot) handleStopAuto(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	delete(b.autoSendUsers, message.Chat.ID)
-	b.sendMessage(bot, message.Chat.ID, "Автоотправка отключена")
+	b.sendMessage(bot, message.Chat.ID, "Auto send disabled")
 }
 
 func (b *Bot) handleText(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	b.sendMessage(bot, message.Chat.ID, "Отправьте /start для просмотра доступных команд")
+	b.sendMessage(bot, message.Chat.ID, "Send /start to see available commands")
 }

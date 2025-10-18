@@ -1,9 +1,11 @@
 package database
 
 import (
+	"context"
+	"crypto-rates/internal/config"
+	"crypto-rates/internal/types"
 	"database/sql"
 	"fmt"
-	"go.uber.org/zap"
 )
 
 type RateRepository struct {
@@ -14,12 +16,12 @@ func NewRateRepository(db *sql.DB) *RateRepository {
 	return &RateRepository{db: db}
 }
 
-func (r *RateRepository) SaveRate(currency string, price float64) error {
+func (r *RateRepository) SaveRate(ctx context.Context, currency types.Currency, price float64) error {
 	query := `INSERT INTO rates (currency_code, price) VALUES ($1, $2)`
 
-	_, err := r.db.Exec(query, currency, price)
+	_, err := r.db.ExecContext(ctx, query, currency.String(), price)
 	if err != nil {
-		return fmt.Errorf("ошибка сохранения курса: %w", err)
+		return fmt.Errorf("failed to save rate: %w", err)
 	}
 
 	return nil
@@ -33,19 +35,21 @@ type RateInfo struct {
 	Change1h     string
 }
 
-func (r *RateRepository) GetCurrentPrice(currency string) (float64, error) {
+func (r *RateRepository) GetCurrentPrice(ctx context.Context, currency types.Currency) (float64, error) {
+	ctx, cancel := context.WithTimeout(ctx, config.DatabaseQueryTimeout)
+	defer cancel()
 	query := `SELECT price FROM rates WHERE currency_code = $1 ORDER BY timestamp DESC LIMIT 1`
 
 	var price float64
-	err := r.db.QueryRow(query, currency).Scan(&price)
+	err := r.db.QueryRowContext(ctx, query, currency.String()).Scan(&price)
 	if err != nil {
-		return 0, fmt.Errorf("ошибка получения цены %s: %w", currency, err)
+		return 0, fmt.Errorf("failed to get %s price: %w", currency, err)
 	}
 
 	return price, nil
 }
 
-func (r *RateRepository) GetSimpleDailyStats(currency string) (minPrice, maxPrice float64, err error) {
+func (r *RateRepository) GetSimpleDailyStats(ctx context.Context, currency types.Currency) (minPrice, maxPrice float64, err error) {
 	query := `
 		SELECT 
 			COALESCE(MIN(price), 0),
@@ -55,40 +59,30 @@ func (r *RateRepository) GetSimpleDailyStats(currency string) (minPrice, maxPric
 		AND timestamp >= NOW() - INTERVAL '24 hours'
 	`
 
-	err = r.db.QueryRow(query, currency).Scan(&minPrice, &maxPrice)
+	err = r.db.QueryRowContext(ctx, query, currency.String()).Scan(&minPrice, &maxPrice)
 	if err != nil {
-		return 0, 0, fmt.Errorf("ошибка получения статистики: %w", err)
+		return 0, 0, fmt.Errorf("failed to get daily stats: %w", err)
 	}
-	return
+	return minPrice, maxPrice, nil
 }
 
-func (r *RateRepository) GetHourlyChangePercent(currency string) string {
-	query := `
-		WITH current_price AS (
-			SELECT price, timestamp
-			FROM rates 
-			WHERE currency_code = $1 
-			ORDER BY timestamp DESC 
-			LIMIT 1
-		),
-		hour_ago_price AS (
-			SELECT price
-			FROM rates 
-			WHERE currency_code = $1 
-			AND timestamp <= (SELECT timestamp FROM current_price) - INTERVAL '1 hour'
-			ORDER BY timestamp DESC 
-			LIMIT 1
-		)
-		SELECT 
-			current_price.price as current,
-			hour_ago_price.price as hour_ago
-		FROM current_price, hour_ago_price
-	`
-
-	var currentPrice, hourAgoPrice float64
-	err := r.db.QueryRow(query, currency).Scan(&currentPrice, &hourAgoPrice)
+func (r *RateRepository) GetHourlyChangePercent(ctx context.Context, currency types.Currency) string {
+	var currentPrice float64
+	err := r.db.QueryRowContext(ctx, "SELECT price FROM rates WHERE currency_code = $1 ORDER BY timestamp DESC LIMIT 1", currency.String()).Scan(&currentPrice)
 	if err != nil {
-		zap.L().Debug("Не удалось получить данные за час", zap.String("валюта", currency), zap.Error(err))
+		return "0%"
+	}
+
+	var hourAgoPrice float64
+	err = r.db.QueryRowContext(ctx, `
+		SELECT price 
+		FROM rates 
+		WHERE currency_code = $1 
+		AND timestamp <= NOW() - INTERVAL '1 hour' 
+		ORDER BY timestamp DESC 
+		LIMIT 1`, currency.String()).Scan(&hourAgoPrice)
+
+	if err != nil {
 		return "0%"
 	}
 
@@ -104,22 +98,22 @@ func (r *RateRepository) GetHourlyChangePercent(currency string) string {
 	return fmt.Sprintf("%.2f%%", change)
 }
 
-func (r *RateRepository) GetRateInfo(currency string) (*RateInfo, error) {
-	currentPrice, err := r.GetCurrentPrice(currency)
+func (r *RateRepository) GetRateInfo(ctx context.Context, currency types.Currency) (*RateInfo, error) {
+	currentPrice, err := r.GetCurrentPrice(ctx, currency)
 	if err != nil {
 		return nil, err
 	}
 
-	minPrice, maxPrice, err := r.GetSimpleDailyStats(currency)
+	minPrice, maxPrice, err := r.GetSimpleDailyStats(ctx, currency)
 	if err != nil {
 		minPrice = currentPrice
 		maxPrice = currentPrice
 	}
 
-	change1h := r.GetHourlyChangePercent(currency)
+	change1h := r.GetHourlyChangePercent(ctx, currency)
 
 	return &RateInfo{
-		Currency:     currency,
+		Currency:     currency.String(),
 		CurrentPrice: currentPrice,
 		MinPrice24h:  minPrice,
 		MaxPrice24h:  maxPrice,

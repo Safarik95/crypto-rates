@@ -5,8 +5,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var Log *zap.Logger
-
 func New() (*zap.Logger, error) {
 	config := zap.NewDevelopmentConfig()
 	config.EncoderConfig.TimeKey = "time"
